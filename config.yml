@@ -1,0 +1,9 @@
+batchSize: 16
+hourGlassStackSize: 1
+numEpochs: 20
+numClasses: 16 # mpii has 16 joints
+numChannels: 128
+inputResolutionX: 192
+inputResolutionY: 192
+outputResolution: 48
+learningRate: 5e-4

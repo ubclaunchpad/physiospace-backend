@@ -1,1 +1,1 @@
-python3 demo.py --input_image data/mpii/images/000001163.jpg --conf_threshold 0.2
+python3 infer.py --input_image data/mpii/images/000759142.jpg --conf_threshold 0.2

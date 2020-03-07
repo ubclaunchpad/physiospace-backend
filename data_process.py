@@ -1,5 +1,40 @@
 import numpy as np
 import scipy
+import cv2
+
+
+def render_joints(cvmat, joints, conf_threshold=0.2):
+    for joint in joints:
+        x, y, confidence = joint
+        if confidence > conf_threshold:
+            cv2.circle(cvmat, center=(int(x), int(y)),
+                       color=(255, 0, 0), radius=7, thickness=2)
+
+    return cvmat
+
+
+def post_process_heatmap(heatMap, kpConfidenceTh=0.2):
+    kplst = list()
+    for i in range(heatMap.shape[-1]):
+        # ignore last channel, background channel
+        _map = heatMap[:, :, i]
+        _map = scipy.ndimage.gaussian_filter(_map, sigma=0.5)
+        _nmsPeaks = non_max_supression(_map, windowSize=3, threshold=1e-6)
+
+        y, x = np.where(_nmsPeaks == _nmsPeaks.max())
+        if len(x) > 0 and len(y) > 0:
+            kplst.append((int(x[0]), int(y[0]), _nmsPeaks[y[0], x[0]]))
+        else:
+            kplst.append((0, 0, 0))
+    return kplst
+
+
+def non_max_supression(plain, windowSize=3, threshold=1e-6):
+    # clear value less than threshold
+    under_th_indices = plain < threshold
+    plain[under_th_indices] = 0
+    return plain * (plain == scipy.ndimage.maximum_filter(plain, footprint=np.ones((windowSize, windowSize))))
+
 
 def get_transform(center, scale, res, rot=0):
     """
@@ -77,7 +112,8 @@ def crop(img, center, scale, res, rot=0):
     # Range to sample from original image
     old_x = max(0, ul[0]), min(len(img[0]), br[0])
     old_y = max(0, ul[1]), min(len(img), br[1])
-    new_img[new_y[0]:new_y[1], new_x[0]:new_x[1]] = img[old_y[0]:old_y[1], old_x[0]:old_x[1]]
+    new_img[new_y[0]:new_y[1], new_x[0]:new_x[1]] = img[
+        old_y[0]:old_y[1], old_x[0]:old_x[1]]
 
     if not rot == 0:
         # Remove padding
@@ -103,7 +139,8 @@ def normalize(imgdata, color_mean):
 
 def draw_labelmap(img, pt, sigma, type='Gaussian'):
     # Draw a 2D gaussian
-    # Adopted from https://github.com/anewell/pose-hg-train/blob/master/src/pypose/draw.py
+    # Adopted from
+    # https://github.com/anewell/pose-hg-train/blob/master/src/pypose/draw.py
 
     # Check that any part of the gaussian is in-bounds
     ul = [int(pt[0] - 3 * sigma), int(pt[1] - 3 * sigma)]
@@ -139,7 +176,8 @@ def transform_kp(joints, center, scale, res, rot):
     newjoints = np.copy(joints)
     for i in range(joints.shape[0]):
         if joints[i, 0] > 0 and joints[i, 1] > 0:
-            _x = transform(newjoints[i, 0:2] + 1, center=center, scale=scale, res=res, invert=0, rot=rot)
+            _x = transform(newjoints[i, 0:2] + 1, center=center,
+                           scale=scale, res=res, invert=0, rot=rot)
             newjoints[i, 0:2] = _x
     return newjoints
 

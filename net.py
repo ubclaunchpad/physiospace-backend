@@ -4,29 +4,26 @@ from keras.layers import Input
 from keras.models import Model
 from keras.optimizers import RMSprop
 from keras.losses import mean_squared_error
-
+from keras.models import load_model, model_from_json
+from matplotlib.pyplot import imread
+import numpy as np
+from data_process import normalize
+from PIL import Image
 
 class HGNet():
 
-    def __init__(self, cfg):
+    def __init__(self, numClasses, numStacks, numChannels, inputRes, outputRes, learningRate):
+        self.numClasses = numClasses
+        self.numStacks = numStacks
+        self.numChannels = numChannels
+        self.inputRes = inputRes
+        self.outputRes = outputRes
+        self.learningRate = learningRate
 
-        # read cfg from yaml
-        with open(cfg) as file:
-            cfgs = yaml.load(file, Loader=yaml.FullLoader)
+        self.model = self.build_model()
 
-            self.numClasses = int(cfgs['numClasses'])
-            self.numStacks = int(cfgs['hourGlassStackSize'])
-            self.numChannels = int(cfgs['numChannels'])
-            self.inputRes = (int(cfgs['inputResolutionX']), int(
-                cfgs['inputResolutionY']))
-            self.outputRes = int(cfgs['outputResolution'])
-
-            self.learningRate = float(cfgs['learningRate'])
-
-            self.model = self.build_model()
-
-            # show model summary
-            self.model.summary()
+        # show model summary
+        self.model.summary()
 
     def build_model(self):
         # define input layer
@@ -57,4 +54,43 @@ class HGNet():
 
         return model
 
-hg = HGNet("config.yml")
+    def load_model(self, model_json, model_file):
+        with open(model_json) as f:
+            self.model = model_from_json(f.read())
+        self.model.load_weights(model_file)
+
+    def inference_rgb(self, rgbdata, orgshape, mean=None):
+        scale = (orgshape[0] * 1.0 / self.inputRes[0], orgshape[1] * 1.0 / self.inputRes[1])
+
+        imgdata = np.array(Image.fromarray(rgbdata).resize(self.inputRes))
+
+        if mean is None:
+            mean = np.array([0.4404, 0.4440, 0.4327], dtype=np.float)
+
+        imgdata = normalize(imgdata, mean)
+
+        input = imgdata[np.newaxis, :, :, :]
+
+        out = self.model.predict(input)
+        return out[-1], scale
+
+    def inference_file(self, imgfile, mean=None):
+        imgdata = imread(imgfile)
+        ret = self.inference_rgb(imgdata, imgdata.shape, mean)
+        return ret
+
+
+if __name__ == "__main__":
+    # read cfg from yaml
+    with open("config.yml") as file:
+        cfgs = yaml.load(file, Loader=yaml.FullLoader)
+
+        numClasses = int(cfgs['numClasses'])
+        numStacks = int(cfgs['hourGlassStackSize'])
+        numChannels = int(cfgs['numChannels'])
+        inputRes = (int(cfgs['inputResolutionX']), int(cfgs['inputResolutionY']))
+        outputRes = int(cfgs['outputResolution'])
+
+        learningRate = float(cfgs['learningRate'])
+
+        hg = HGNet(numClasses, numStacks, numChannels, inputRes, outputRes, learningRate)
